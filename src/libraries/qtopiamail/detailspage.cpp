@@ -46,7 +46,7 @@
 
 static const QString placeholder(QtopiaApplication::translate("DetailsPage", "(no subject)"));
 
-static const int MaximumSmsSubjectLength = 40;
+static const int MaximumSmsSubjectLength = 80;
 static const int MaximumInstantSubjectLength = 256;
 
 
