@@ -469,7 +469,11 @@ void Browser::renderMultipart(const QMailMessagePartContainer *mail, QString& bo
 	}
 
 	// Render the start part
-	bodyText += renderPart(mail->partAt(startIndex));
+	if (mail->partAt(startIndex).partCount() > 0) {
+	    renderMultipart(&mail->partAt(startIndex), bodyText);
+	} else {
+	    bodyText += renderPart(mail->partAt(startIndex));
+	}
 
     } else {
 
