@@ -94,13 +94,47 @@ static bool alsactl(QStringList & args)
         QProcess p;
         p.start("alsactl", args);
         p.waitForFinished(-1);
-        QString output = p.readAllStandardOutput();
-        output += p.readAllStandardError();
 
-        if(output.length() == 0)
+	// We need to determine if we're happy with alsactl's output,
+	// or if it indicates a problem.  Initially assume that it
+	// will be OK.
+	bool alsactl_ok = true;
+
+	// We don't expect anything at all on alsactl's standard
+	// output.
+        QString output = p.readAllStandardOutput();
+        if (output.length() != 0) {
+	    qWarning() << "alsactl stdout (not expected): " << output;
+	    alsactl_ok = false;
+	}
+
+	// Some standard error output is expected, and benign.  To
+	// process it correctly we need to process the standard error
+	// output line by line.
+        output = p.readAllStandardError();
+	QStringList stderr_lines =
+	    QString(output).split("\n", QString::SkipEmptyParts);
+	for (int j = 0; j < stderr_lines.size(); j++) {
+	    if ((gta04a3) &&
+		stderr_lines.at(i).contains("Cannot write control"
+					    " '2:0:0:Codec Operation Mode:0'"
+					    " : Device or resource busy")) {
+		qLog() << "alsactl stderr (ok): " << stderr_lines.at(i);
+	    } else {
+		qWarning() << "alsactl stderr (not expected): " <<
+		                                     stderr_lines.at(i);
+		alsactl_ok = false;
+	    }
+	}
+
+	// If all the output was OK, return successfully.
+        if (alsactl_ok)
             return true;
 
-        qWarning() << "alsactl returned " << output << ", running kill-snd-card-users.sh";
+	// Otherwise kill all sound card users, and loop round to try
+	// running alsactl again.
+        qWarning() <<
+	    "alsactl had unexpected output, running kill-snd-card-users.sh";
         QProcess::execute("kill-snd-card-users.sh");
     }
     return false;
