@@ -34,6 +34,10 @@ public:
     ~NeoAudioPlugin();
 
     QList<QAudioState *> statesProvided() const;
+    void updateMixerSwitches(bool allow_input,
+			     bool allow_output,
+			     QString profile,
+			     bool phone);
 
 private:
     NeoAudioPluginPrivate *m_data;

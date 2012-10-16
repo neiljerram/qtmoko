@@ -8,6 +8,11 @@ if [ ! -d /dev/pts ]; then
     modprobe joydev
 fi
 
+# Set initial sound card state with all inputs and outputs disabled.
+# Code in neoaudioplugin.cpp will enable whatever inputs and outputs
+# should be switched on.
+alsactl -f /opt/qtmoko/etc/alsa/Null.state restore
+
 # Start pulse audio
 pulse.sh &
 

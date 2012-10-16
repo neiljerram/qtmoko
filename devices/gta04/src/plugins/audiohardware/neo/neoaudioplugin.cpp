@@ -28,6 +28,8 @@
 #include <QValueSpaceItem>
 #include <QtopiaIpcAdaptor>
 #include <QtopiaIpcEnvelope>
+#include <QAudioMixer>
+#include <QAudioElement>
 
 #include <qplugin.h>
 #include <qtopialog.h>
@@ -52,59 +54,9 @@
 //       Headset: external headphones
 //     Recording: for recording audio e.g. in voice notes app
 //  GSMBluetooth: for gsm calls over bluetooth
-//
-// It seems that restoring whole state is quite fast on GTA04 (200ms). You can
-// find in history version based on amixer and switching just needed controls
-// but we switch whole state files now because it's more easily customizable
-// for user.
-
-/*
-static bool amixerSet(QStringList & args)
-{
-    qLog(AudioState) << "amixer set " << args;
-
-    args.insert(0, "-q");       // make it quiet
-    args.insert(0, "set");
-    int ret = QProcess::execute("amixer", args);
-    if (ret != 0) {
-        qWarning() << "amixer returned " << ret;
-    }
-    return ret == 0;
-}*/
 
 bool usePulse;
 bool gta04a3;
-
-static bool alsactl(QStringList & args)
-{
-    if(usePulse) {
-        QProcess p;
-        args.insert(0, "alsactl");
-        args.insert(0, "--");
-        qLog(AudioState) << "pasuspender " << args;
-        p.start("pasuspender", args);
-        p.waitForFinished(-1);
-        return true;
-    }
-    
-    qLog(AudioState) << "alsactl " << args;
-
-    for(int i = 0; i < 8; i++) {
-        
-        QProcess p;
-        p.start("alsactl", args);
-        p.waitForFinished(-1);
-        QString output = p.readAllStandardOutput();
-        output += p.readAllStandardError();
-
-        if(output.length() == 0)
-            return true;
-
-        qWarning() << "alsactl returned " << output << ", running kill-snd-card-users.sh";
-        QProcess::execute("kill-snd-card-users.sh");
-    }
-    return false;
-}
 
 static bool writeToFile(const char *filename, const char *val, int len)
 {
@@ -187,7 +139,7 @@ public:
     StateFileAudioState(QByteArray domain,
 			QByteArray profile,
 			int priority,
-			QObject * parent = 0);
+			NeoAudioPlugin *parent);
 
     virtual QAudioStateInfo info() const;
     virtual QAudio::AudioCapabilities capabilities() const;
@@ -197,19 +149,44 @@ public:
     virtual bool leave();
 
 private:
+    bool allow_input;
+    bool allow_output;
     QAudioStateInfo m_info;
+    NeoAudioPlugin *m_parent;
 };
 
 StateFileAudioState::StateFileAudioState(QByteArray domain,
 					 QByteArray profile,
 					 int priority,
-					 QObject * parent) :
+					 NeoAudioPlugin *parent) :
     QAudioState(parent)
 {
+    m_parent = parent;
+
     m_info.setDomain(domain);
     m_info.setProfile(profile);
     m_info.setPriority(priority);
     m_info.setDisplayName(tr(profile));
+
+    allow_input = false;
+    allow_output = false;
+
+    if (m_info.domain() == "Phone") {
+	/* All Phone states do both input and output. */
+	allow_input = true;
+	allow_output = true;
+    }
+    else if (m_info.profile() == "Recording") {
+	/* Recording states do input only. */
+	allow_input = true;
+    }
+    else if (m_info.domain() == "Media") {
+	/* All other Media states do output only. */
+	allow_output = true;
+    }
+
+    /* Note that there is a Null state that allows neither input nor
+       output. */
 }
 
 QAudioStateInfo StateFileAudioState::info() const
@@ -219,9 +196,17 @@ QAudioStateInfo StateFileAudioState::info() const
 
 QAudio::AudioCapabilities StateFileAudioState::capabilities() const
 {
-    return (QAudio::InputOnly |
-	    QAudio::OutputOnly |
-	    QAudio::InputAndOutput);
+    if (allow_input && allow_output) {
+	return (QAudio::InputOnly |
+		QAudio::OutputOnly |
+		QAudio::InputAndOutput);
+    }
+    else if (allow_input) {
+	return (QAudio::InputOnly);
+    }
+    else {
+	return (QAudio::OutputOnly);
+    }
 }
 
 bool StateFileAudioState::isAvailable() const
@@ -235,23 +220,16 @@ bool StateFileAudioState::enter(QAudio::AudioCapability)
         gsmVoiceStop();
     }
 
-    QString stateFile = "/opt/qtmoko/etc/alsa/";
-
-    if (gta04a3) {
-        stateFile += "a3/";
-    } else {
-        stateFile += "a4/";
-    }
-
-    stateFile += m_info.domain() + m_info.profile() + ".state";
-
-    bool ok = alsactl(QStringList() << "-f" << stateFile << "restore");
+    m_parent->updateMixerSwitches(allow_input,
+				  allow_output,
+				  m_info.profile(),
+				  m_info.domain() == "Phone");
 
     if (gta04a3 && (m_info.domain() == "Phone")) {
         gsmVoiceStart();
     }
 
-    return ok;
+    return true;
 }
 
 bool StateFileAudioState::leave()
@@ -267,7 +245,7 @@ class HeadsetAudioState : public StateFileAudioState
 public:
     HeadsetAudioState(QByteArray domain,
 		      int priority,
-		      QObject * parent = 0);
+		      NeoAudioPlugin *parent);
 
     virtual bool isAvailable() const;
     virtual bool enter(QAudio::AudioCapability capability);
@@ -281,7 +259,7 @@ private:
 
 HeadsetAudioState::HeadsetAudioState(QByteArray domain,
 				     int priority,
-				     QObject * parent) :
+				     NeoAudioPlugin *parent) :
     StateFileAudioState(domain,
 			"Headset",
 			priority,
@@ -493,15 +471,24 @@ class NeoAudioPluginPrivate
 {
 public:
     QList < QAudioState * >m_states;
+    QAudioMixer *mixer;
+    QAudioElement *headset_mic_switch;
+    QAudioElement *main_mic_switch;
+    QAudioElement *playback_switch;
+    QAudioElement *speaker_switch;
+    QAudioElement *headset_left_switch;
+    QAudioElement *headset_right_switch;
+    QAudioElement *earpiece_switch;
+    QAudioElement *voice_route;
 };
 
 NeoAudioPlugin::NeoAudioPlugin(QObject * parent):
 QAudioStatePlugin(parent)
 {
     m_data = new NeoAudioPluginPrivate;
-    
+
     usePulse = QFile::exists("/usr/bin/pasuspender");
-    
+
     // On A4+ models use HW sound routing, on A3 do SW routing
     gta04a3 = !(QFile::exists("/sys/class/gpio/gpio186/value"));
 
@@ -518,7 +505,7 @@ QAudioStatePlugin(parent)
     m_data->m_states.
       push_back(new StateFileAudioState("Phone", "Speaker", 4, this));
 
-    /* Priority ordering for media: Headset (if available),
+    /* Priority ordering for media playback: Headset (if available),
        Bluetooth (if available), Speaker, Earpiece. */
     m_data->m_states.
       push_back(new HeadsetAudioState("Media", 1, this));
@@ -531,6 +518,10 @@ QAudioStatePlugin(parent)
     m_data->m_states.
       push_back(new StateFileAudioState("Media", "Earpiece", 4, this));
 
+    /* Recording when in the Media domain. */
+    m_data->m_states.
+      push_back(new StateFileAudioState("Media", "Recording", 5, this));
+
     /* Priority ordering for ringtone is the same as for media, but
        BluetoothAudioState doesn't yet support the Ringtone domain. */
     m_data->m_states.
@@ -540,14 +531,55 @@ QAudioStatePlugin(parent)
     m_data->m_states.
       push_back(new StateFileAudioState("Ringtone", "Earpiece", 4, this));
 
-    /* We shouldn't have to do anything here to set up the initial
-       state.  Code elsewhere should know that we initially want the
-       Media domain and choose the best available audio state for
-       that. */
+    /* Find the mixer switches that we will need. */
+    m_data->mixer = new QAudioMixer();
+    QList<QAudioElement*> e = m_data->mixer->elements();
+    m_data->headset_mic_switch = NULL;
+    m_data->main_mic_switch = NULL;
+    m_data->playback_switch = NULL;
+    m_data->speaker_switch = NULL;
+    m_data->headset_left_switch = NULL;
+    m_data->headset_right_switch = NULL;
+    m_data->earpiece_switch = NULL;
+    m_data->voice_route = NULL;
+    for (int i = 0; i < e.size(); i++) {
+	QAudioElement *elem = e.at(i);
+	if (elem->getName() == "Analog Left Headset Mic") {
+	    m_data->headset_mic_switch = elem;
+	}
+	else if (elem->getName() == "Analog Left Main Mic") {
+	    m_data->main_mic_switch = elem;
+	}
+	else if (elem->getName() == "DAC2 Analog") {
+	    m_data->playback_switch = elem;
+	}
+	else if (elem->getName() == "HandsfreeL") {
+	    m_data->speaker_switch = elem;
+	}
+	else if (elem->getName() == "HeadsetL Mixer AudioL2") {
+	    m_data->headset_left_switch = elem;
+	}
+	else if (elem->getName() == "HeadsetR Mixer AudioR2") {
+	    m_data->headset_right_switch = elem;
+	}
+	else if (elem->getName() == "Earpiece Mixer AudioL2") {
+	    m_data->earpiece_switch = elem;
+	}
+	else if (elem->getName() == "Voice route") {
+	    m_data->voice_route = elem;
+	}
+    }
+
+    /* We don't have to do anything here to install the initial state.
+       Code elsewhere works out that we initially want the Media
+       domain and selects the best available audio state for that
+       domain, and calls (indirectly) the enter() method for that
+       state. */
 }
 
 NeoAudioPlugin::~NeoAudioPlugin()
 {
+    delete(m_data->mixer);
     qDeleteAll(m_data->m_states);
 
     delete m_data;
@@ -556,6 +588,37 @@ NeoAudioPlugin::~NeoAudioPlugin()
 QList < QAudioState * >NeoAudioPlugin::statesProvided()const
 {
     return m_data->m_states;
+}
+
+void NeoAudioPlugin::updateMixerSwitches(bool allow_input,
+					 bool allow_output,
+					 QString profile,
+					 bool phone)
+{
+    qLog(AudioState)
+	<< "updateMixerSwitches" << allow_input << allow_output << profile;
+
+    m_data->headset_mic_switch->setMute(!(allow_input && (profile == "Headset")));
+    m_data->main_mic_switch->setMute(!(allow_input && (profile != "Headset")));
+    m_data->playback_switch->setMute(!(allow_output));
+    m_data->speaker_switch->setMute(!(allow_output && (profile == "Speaker")));
+    m_data->headset_left_switch->setMute(!(allow_output && (profile == "Headset")));
+    m_data->headset_right_switch->setMute(!(allow_output && (profile == "Headset")));
+    m_data->earpiece_switch->setMute(!(allow_output && (profile == "Earpiece")));
+
+    if (!gta04a3) {
+	qLog(AudioState) << "phone" << phone;
+
+	// It saves power, in general, but especially during suspend,
+	// for the "Voice route" control to be set to "Voice to SoC".
+	// Hence on A4 (and later) we only set this control to "Voice
+	// to twl4030" (which is the HW routing setting) when in a
+	// phone call, and set it back to "Voice to Soc" in all other
+	// circumstances.
+	m_data->voice_route->setOption(phone
+				       ? "Voice to twl4030"
+				       : "Voice to SoC");
+    }
 }
 
 Q_EXPORT_PLUGIN2(neoaudio_plugin, NeoAudioPlugin)
