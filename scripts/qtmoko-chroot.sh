@@ -80,12 +80,12 @@ apt-get install g++-4.4-arm-linux-gnueabi
 
 echo "Installing xapt and ARM qtmoko dependencies"
 apt-get install xapt
-xapt -a armel -m libxext-dev libasound2-dev libdbus-1-dev libssl-dev libts-dev libbluetooth-dev libxtst-dev libpng12-dev libjpeg8-dev libv4l-dev libspeexdsp-dev libglib2.0-dev libsqlite3-dev libgstreamer0.10-dev libgstreamer-plugins-base0.10-dev libvorbis-dev libpulse-dev
-
-echo "export PATH=/usr/lib/ccache:\$PATH" >> /root/.bashrc
-echo "PS1='qtmoko-chroot:\w\\\$ '" >> /root/.bashrc
-echo "export LANG=C" >> /root/.bashrc
-echo "export LC_ALL=C" >> /root/.bashrc
+# xapt -a armel -m libxext-dev libasound2-dev libdbus-1-dev libssl-dev libts-dev libbluetooth-dev libxtst-dev libpng12-dev libjpeg8-dev libv4l-dev libspeexdsp-dev libglib2.0-dev libsqlite3-dev libgstreamer0.10-dev libgstreamer-plugins-base0.10-dev libvorbis-dev libpulse-dev
+# 
+# echo "export PATH=/usr/lib/ccache:\$PATH" >> /root/.bashrc
+# echo "PS1='qtmoko-chroot:\w\\\$ '" >> /root/.bashrc
+# echo "export LANG=C" >> /root/.bashrc
+# echo "export LC_ALL=C" >> /root/.bashrc
 
 echo "+-----------------------------------------------------------------+"
 echo "| Success! You can now build QtMoko like this:                    |"
