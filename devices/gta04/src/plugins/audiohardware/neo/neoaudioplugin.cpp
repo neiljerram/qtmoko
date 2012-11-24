@@ -77,22 +77,21 @@ bool gta04a3;
 
 static bool alsactl(QStringList & args)
 {
-    if(usePulse) {
-        QProcess p;
-        args.insert(0, "alsactl");
-        args.insert(0, "--");
-        qLog(AudioState) << "pasuspender " << args;
-        p.start("pasuspender", args);
-        p.waitForFinished(-1);
-        return true;
-    }
-    
     qLog(AudioState) << "alsactl " << args;
+
+    QString cmd = "alsactl";
+    if (usePulse) {
+        args.insert(0, cmd);
+	args.insert(0, "--");
+	cmd = "pasuspender";
+    }
 
     for(int i = 0; i < 8; i++) {
         
         QProcess p;
-        p.start("alsactl", args);
+
+	qLog(AudioState) << cmd << args;
+	p.start(cmd, args);
         p.waitForFinished(-1);
 
 	// We need to determine if we're happy with alsactl's output,
@@ -119,6 +118,9 @@ static bool alsactl(QStringList & args)
 		stderr_lines.at(i).contains("Cannot write control"
 					    " '2:0:0:Codec Operation Mode:0'"
 					    " : Device or resource busy")) {
+		qLog() << "alsactl stderr (ok): " << stderr_lines.at(i);
+	    } else if (usePulse &&
+		stderr_lines.at(i).contains("XOpenDisplay() failed")) {
 		qLog() << "alsactl stderr (ok): " << stderr_lines.at(i);
 	    } else {
 		qWarning() << "alsactl stderr (not expected): " <<
