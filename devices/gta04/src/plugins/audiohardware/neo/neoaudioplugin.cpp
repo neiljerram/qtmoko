@@ -148,71 +148,73 @@ static bool writeToFile(const char *filename, const char *val, int len)
     return (bool) Qtopia::writeFile(filename, val, len);
 }
 
-QProcess *voicePs = NULL;
+// Run a command and return the first line of its output.
+static QString backtick(QString cmd)
+{
+  QProcess p;
+
+  qLog(AudioState) << cmd;
+
+  // Run the command and wait for it to finish.
+  p.start(cmd);
+  p.waitForFinished();
+
+  // Get its standard output.
+  QString output = p.readAllStandardOutput();
+
+  qLog(AudioState) << "=>" << output;
+
+  // Return the first line of the output.
+  return output.split("\n").at(0);
+}
+
+QString moduleIdGsmToEar;
+QString moduleIdMicToGsm;
 
 static bool gsmVoiceStop()
 {
+    if (!moduleIdGsmToEar.isEmpty()) {
+
+	// Stop loopback from the modem to the earpiece.
+	backtick(QString("pactl unload-module %1").arg(moduleIdGsmToEar));
+	moduleIdGsmToEar.clear();
+
+	// Stop loopback from the microphone to the modem.
+	backtick(QString("pactl unload-module %1").arg(moduleIdMicToGsm));
+	moduleIdMicToGsm.clear();
+    }
+
     // Move back alsa config (used e.g. by blueooth a2dp sound)
     if(QFile::exists("/home/root/.asoundrc.tmp")) {
         QFile::rename("/home/root/.asoundrc.tmp", "/home/root/.asoundrc");
     }
 
-    if (voicePs == NULL) {
-        return true;
-    }
-    qLog(AudioState) << "terminating gsm-voice-routing pid " << voicePs->pid();
-    voicePs->terminate();
-    if (!voicePs->waitForFinished(1000)) {
-        qWarning() << "gsm-voice-routing process failed to terminate";
-        voicePs->kill();
-    }
-    delete(voicePs);
-    voicePs = NULL;
     return true;
 }
 
 static bool gsmVoiceStart()
 {
-    if (voicePs != NULL) {
-        return true;
-    }
-
     // Move away alsa config (used e.g. by blueooth a2dp sound)
     if(QFile::exists("/home/root/.asoundrc")) {
         QFile::rename("/home/root/.asoundrc", "/home/root/.asoundrc.tmp");
     }
-    
-    voicePs = new QProcess();
-    QStringList args;
 
-    // Dump output always to stderr if audio logging is enabled
-    if (qLogEnabled(AudioState)) {
-        QStringList env = QProcess::systemEnvironment();
-        for (int i = 0; i < env.count(); i++) {
-            if (env.at(i).startsWith("GSM_VOICE_ROUTING_LOGFILE")) {
-                env.removeAt(i);
-                voicePs->setEnvironment(env);
-                break;
-            }
-        }
-        voicePs->setProcessChannelMode(QProcess::ForwardedChannels);
+    if (moduleIdGsmToEar.isEmpty()) {
+
+	// Start loopback from the modem to the earpiece.
+	moduleIdGsmToEar =
+	    backtick("pactl load-module module-loopback"
+		     " source=alsa_input.platform-soc-audio.1.analog-mono"
+		     " sink=alsa_output.platform-soc-audio.0.analog-stereo");
+
+	// Start loopback from the microphone to the modem.
+	moduleIdMicToGsm =
+	    backtick("pactl load-module module-loopback"
+		     " source=alsa_input.platform-soc-audio.0.analog-stereo"
+		     " sink=alsa_output.platform-soc-audio.1.analog-mono");
     }
 
-    if(usePulse) {
-        args.insert(0, "gsm-voice-routing");
-        args.insert(0, "--");
-        qLog(AudioState) << "pasuspender " << args;
-        voicePs->start("pasuspender", args);
-    } else
-        voicePs->start("gsm-voice-routing");
-
-    if (voicePs->waitForStarted(3000)) {
-        qLog(AudioState) << "starting gsm-voice-routing pid " << voicePs->pid();
-        return true;
-    }
-    qWarning() << "failed to start gsm-voice-routing: " <<
-        voicePs->errorString();
-    return false;
+    return true;
 }
 
 /* Class for an audio state based on an ALSA state file. */
