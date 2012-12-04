@@ -204,14 +204,14 @@ static bool gsmVoiceStart()
 	// Start loopback from the modem to the earpiece.
 	moduleIdGsmToEar =
 	    backtick("pactl load-module module-loopback"
-		     " source=alsa_input.platform-soc-audio.1.analog-mono"
-		     " sink=alsa_output.platform-soc-audio.0.analog-stereo");
+		     " source=alsa_input.platform-soc-audio.1.analog-mono rate=8000"
+		     " sink=alsa_output.platform-soc-audio.0.analog-stereo.echo-cancel");
 
 	// Start loopback from the microphone to the modem.
 	moduleIdMicToGsm =
 	    backtick("pactl load-module module-loopback"
-		     " source=alsa_input.platform-soc-audio.0.analog-stereo"
-		     " sink=alsa_output.platform-soc-audio.1.analog-mono");
+		     " source=alsa_input.platform-soc-audio.0.analog-stereo.echo-cancel"
+		     " sink=alsa_output.platform-soc-audio.1.analog-mono rate=8000");
     }
 
     return true;
