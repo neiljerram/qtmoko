@@ -113,7 +113,7 @@
 		<layout rect="0,0,106x400" orientation="vertical" align="vcenter">
 			<image name="dialer" rect="0,0,96x96" src="phone.png" scale="yes" interactive="yes"/>
 			<image name="mainmenu" rect="0,0,96x96" src="go-home.png" scale="yes" interactive="yes"/>
-			<image name="favorites" rect="0,0,96x96" src="application-default-icon.png" scale="yes" interactive="yes"/>
+			<image name="taskmanager" rect="0,0,96x96" src="application-default-icon.png" scale="yes" interactive="yes"/>
 			<image name="lock" rect="0,0,96x96" src="system-lock-screen.png" scale="yes" interactive="yes"/>
 		</layout>
 	</group>
