@@ -257,9 +257,20 @@ QAudioStateInfo StateFileAudioState::info() const
 
 QAudio::AudioCapabilities StateFileAudioState::capabilities() const
 {
-    return (QAudio::InputOnly |
-	    QAudio::OutputOnly |
-	    QAudio::InputAndOutput);
+    if (m_info.domain() == "Phone") {
+	/* All Phone states do both input and output. */
+	return (QAudio::InputOnly |
+		QAudio::OutputOnly |
+		QAudio::InputAndOutput);
+    }
+    else if (m_info.profile() == "Recording") {
+	/* Recording states do input only. */
+	return (QAudio::InputOnly);
+    }
+    else {
+	/* All other states do output only. */
+	return (QAudio::OutputOnly);
+    }
 }
 
 bool StateFileAudioState::isAvailable() const
@@ -556,7 +567,7 @@ QAudioStatePlugin(parent)
     m_data->m_states.
       push_back(new StateFileAudioState("Phone", "Speaker", 4, this));
 
-    /* Priority ordering for media: Headset (if available),
+    /* Priority ordering for media playback: Headset (if available),
        Bluetooth (if available), Speaker, Earpiece. */
     m_data->m_states.
       push_back(new HeadsetAudioState("Media", 1, this));
@@ -568,6 +579,10 @@ QAudioStatePlugin(parent)
       push_back(new StateFileAudioState("Media", "Speaker", 3, this));
     m_data->m_states.
       push_back(new StateFileAudioState("Media", "Earpiece", 4, this));
+
+    /* Recording when in the Media domain. */
+    m_data->m_states.
+      push_back(new StateFileAudioState("Media", "Recording", 5, this));
 
     /* Priority ordering for ringtone is the same as for media, but
        BluetoothAudioState doesn't yet support the Ringtone domain. */
