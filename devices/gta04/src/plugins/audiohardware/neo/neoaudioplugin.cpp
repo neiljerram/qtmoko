@@ -202,16 +202,10 @@ static bool gsmVoiceStart()
     if (moduleIdGsmToEar.isEmpty()) {
 
 	// Start loopback from the modem to the earpiece.
-	moduleIdGsmToEar =
-	    backtick("pactl load-module module-loopback"
-		     " source=alsa_input.platform-soc-audio.1.analog-mono rate=8000"
-		     " sink=alsa_output.platform-soc-audio.0.analog-stereo.echo-cancel");
+	moduleIdGsmToEar = backtick("/opt/qtmoko/bin/paLoopGsmToEar");
 
 	// Start loopback from the microphone to the modem.
-	moduleIdMicToGsm =
-	    backtick("pactl load-module module-loopback"
-		     " source=alsa_input.platform-soc-audio.0.analog-stereo.echo-cancel"
-		     " sink=alsa_output.platform-soc-audio.1.analog-mono rate=8000");
+	moduleIdMicToGsm = backtick("/opt/qtmoko/bin/paLoopMicToGsm");
     }
 
     return true;

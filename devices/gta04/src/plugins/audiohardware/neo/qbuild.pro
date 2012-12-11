@@ -23,3 +23,10 @@ confa3 [
     path=/etc/alsa/a3
 ]
 INSTALLS+=confa3
+
+confa3scr [
+    hint=script
+    files=a3/paLoopGsmToEar a3/paLoopMicToGsm
+    path=/bin
+]
+INSTALLS+=confa3scr
