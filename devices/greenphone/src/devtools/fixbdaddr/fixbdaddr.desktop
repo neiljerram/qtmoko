@@ -1,8 +1,0 @@
-[Translation]
-File=QtopiaSettings
-Context=FixBdaddr
-[Desktop Entry]
-Type=Application
-Exec=fixbdaddr
-Icon=devtools/devtools
-Name[]=Fix BDADDR
