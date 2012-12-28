@@ -624,8 +624,12 @@ void ImapClient::searchCompleted()
         _readUids = inFirstAndSecond(account.serverUids(boxId, QMailMessage::Read), _unseenUids);
 
         // Report any messages that are no longer returned by the server
-        foreach (const QString &uid, inFirstButNotSecond(storedUids, reportedUids))
+	qLog(IMAP) << "Start reporting non-existent messages";
+        foreach (const QString &uid,
+		 inFirstButNotSecond(inFirstButNotSecond(storedUids, reportedUids),
+				     account.serverUids(boxId, QMailMessage::Removed)))
             emit nonexistentMessage(uid, Client::Removed);
+	qLog(IMAP) << "Finished reporting non-existent messages";
 
         // Update any messages that are reported read-elsewhere, that we didn't previously know about
         foreach (const QString &uid, inFirstAndSecond(_seenUids, unreadElsewhereUids)) {
