@@ -77,30 +77,66 @@ bool gta04a3;
 
 static bool alsactl(QStringList & args)
 {
-    if(usePulse) {
-        QProcess p;
-        args.insert(0, "alsactl");
-        args.insert(0, "--");
-        qLog(AudioState) << "pasuspender " << args;
-        p.start("pasuspender", args);
-        p.waitForFinished(-1);
-        return true;
-    }
-    
     qLog(AudioState) << "alsactl " << args;
+
+    QString cmd = "alsactl";
+    if (usePulse) {
+        args.insert(0, cmd);
+	args.insert(0, "--");
+	cmd = "pasuspender";
+    }
 
     for(int i = 0; i < 8; i++) {
         
         QProcess p;
-        p.start("alsactl", args);
-        p.waitForFinished(-1);
-        QString output = p.readAllStandardOutput();
-        output += p.readAllStandardError();
 
-        if(output.length() == 0)
+	qLog(AudioState) << cmd << args;
+	p.start(cmd, args);
+        p.waitForFinished(-1);
+
+	// We need to determine if we're happy with alsactl's output,
+	// or if it indicates a problem.  Initially assume that it
+	// will be OK.
+	bool alsactl_ok = true;
+
+	// We don't expect anything at all on alsactl's standard
+	// output.
+        QString output = p.readAllStandardOutput();
+        if (output.length() != 0) {
+	    qWarning() << "alsactl stdout (not expected): " << output;
+	    alsactl_ok = false;
+	}
+
+	// Some standard error output is expected, and benign.  To
+	// process it correctly we need to process the standard error
+	// output line by line.
+        output = p.readAllStandardError();
+	QStringList stderr_lines =
+	    QString(output).split("\n", QString::SkipEmptyParts);
+	for (int j = 0; j < stderr_lines.size(); j++) {
+	    if ((gta04a3) &&
+		stderr_lines.at(i).contains("Cannot write control"
+					    " '2:0:0:Codec Operation Mode:0'"
+					    " : Device or resource busy")) {
+		qLog() << "alsactl stderr (ok): " << stderr_lines.at(i);
+	    } else if (usePulse &&
+		stderr_lines.at(i).contains("XOpenDisplay() failed")) {
+		qLog() << "alsactl stderr (ok): " << stderr_lines.at(i);
+	    } else {
+		qWarning() << "alsactl stderr (not expected): " <<
+		                                     stderr_lines.at(i);
+		alsactl_ok = false;
+	    }
+	}
+
+	// If all the output was OK, return successfully.
+        if (alsactl_ok)
             return true;
 
-        qWarning() << "alsactl returned " << output << ", running kill-snd-card-users.sh";
+	// Otherwise kill all sound card users, and loop round to try
+	// running alsactl again.
+        qWarning() <<
+	    "alsactl had unexpected output, running kill-snd-card-users.sh";
         QProcess::execute("kill-snd-card-users.sh");
     }
     return false;
@@ -112,71 +148,67 @@ static bool writeToFile(const char *filename, const char *val, int len)
     return (bool) Qtopia::writeFile(filename, val, len);
 }
 
-QProcess *voicePs = NULL;
+// Run a command and return the first line of its output.
+static QString backtick(QString cmd)
+{
+  QProcess p;
+
+  qLog(AudioState) << cmd;
+
+  // Run the command and wait for it to finish.
+  p.start(cmd);
+  p.waitForFinished();
+
+  // Get its standard output.
+  QString output = p.readAllStandardOutput();
+
+  qLog(AudioState) << "=>" << output;
+
+  // Return the first line of the output.
+  return output.split("\n").at(0);
+}
+
+QString moduleIdGsmToEar;
+QString moduleIdMicToGsm;
 
 static bool gsmVoiceStop()
 {
+    if (!moduleIdGsmToEar.isEmpty()) {
+
+	// Stop loopback from the modem to the earpiece.
+	backtick(QString("pactl unload-module %1").arg(moduleIdGsmToEar));
+	moduleIdGsmToEar.clear();
+
+	// Stop loopback from the microphone to the modem.
+	backtick(QString("pactl unload-module %1").arg(moduleIdMicToGsm));
+	moduleIdMicToGsm.clear();
+    }
+
     // Move back alsa config (used e.g. by blueooth a2dp sound)
     if(QFile::exists("/home/root/.asoundrc.tmp")) {
         QFile::rename("/home/root/.asoundrc.tmp", "/home/root/.asoundrc");
     }
 
-    if (voicePs == NULL) {
-        return true;
-    }
-    qLog(AudioState) << "terminating gsm-voice-routing pid " << voicePs->pid();
-    voicePs->terminate();
-    if (!voicePs->waitForFinished(1000)) {
-        qWarning() << "gsm-voice-routing process failed to terminate";
-        voicePs->kill();
-    }
-    delete(voicePs);
-    voicePs = NULL;
     return true;
 }
 
 static bool gsmVoiceStart()
 {
-    if (voicePs != NULL) {
-        return true;
-    }
-
     // Move away alsa config (used e.g. by blueooth a2dp sound)
     if(QFile::exists("/home/root/.asoundrc")) {
         QFile::rename("/home/root/.asoundrc", "/home/root/.asoundrc.tmp");
     }
-    
-    voicePs = new QProcess();
-    QStringList args;
 
-    // Dump output always to stderr if audio logging is enabled
-    if (qLogEnabled(AudioState)) {
-        QStringList env = QProcess::systemEnvironment();
-        for (int i = 0; i < env.count(); i++) {
-            if (env.at(i).startsWith("GSM_VOICE_ROUTING_LOGFILE")) {
-                env.removeAt(i);
-                voicePs->setEnvironment(env);
-                break;
-            }
-        }
-        voicePs->setProcessChannelMode(QProcess::ForwardedChannels);
+    if (moduleIdGsmToEar.isEmpty()) {
+
+	// Start loopback from the modem to the earpiece.
+	moduleIdGsmToEar = backtick("/opt/qtmoko/bin/paLoopGsmToEar");
+
+	// Start loopback from the microphone to the modem.
+	moduleIdMicToGsm = backtick("/opt/qtmoko/bin/paLoopMicToGsm");
     }
 
-    if(usePulse) {
-        args.insert(0, "gsm-voice-routing");
-        args.insert(0, "--");
-        qLog(AudioState) << "pasuspender " << args;
-        voicePs->start("pasuspender", args);
-    } else
-        voicePs->start("gsm-voice-routing");
-
-    if (voicePs->waitForStarted(3000)) {
-        qLog(AudioState) << "starting gsm-voice-routing pid " << voicePs->pid();
-        return true;
-    }
-    qWarning() << "failed to start gsm-voice-routing: " <<
-        voicePs->errorString();
-    return false;
+    return true;
 }
 
 /* Class for an audio state based on an ALSA state file. */
@@ -219,9 +251,20 @@ QAudioStateInfo StateFileAudioState::info() const
 
 QAudio::AudioCapabilities StateFileAudioState::capabilities() const
 {
-    return (QAudio::InputOnly |
-	    QAudio::OutputOnly |
-	    QAudio::InputAndOutput);
+    if (m_info.domain() == "Phone") {
+	/* All Phone states do both input and output. */
+	return (QAudio::InputOnly |
+		QAudio::OutputOnly |
+		QAudio::InputAndOutput);
+    }
+    else if (m_info.profile() == "Recording") {
+	/* Recording states do input only. */
+	return (QAudio::InputOnly);
+    }
+    else {
+	/* All other states do output only. */
+	return (QAudio::OutputOnly);
+    }
 }
 
 bool StateFileAudioState::isAvailable() const
@@ -518,7 +561,7 @@ QAudioStatePlugin(parent)
     m_data->m_states.
       push_back(new StateFileAudioState("Phone", "Speaker", 4, this));
 
-    /* Priority ordering for media: Headset (if available),
+    /* Priority ordering for media playback: Headset (if available),
        Bluetooth (if available), Speaker, Earpiece. */
     m_data->m_states.
       push_back(new HeadsetAudioState("Media", 1, this));
@@ -530,6 +573,10 @@ QAudioStatePlugin(parent)
       push_back(new StateFileAudioState("Media", "Speaker", 3, this));
     m_data->m_states.
       push_back(new StateFileAudioState("Media", "Earpiece", 4, this));
+
+    /* Recording when in the Media domain. */
+    m_data->m_states.
+      push_back(new StateFileAudioState("Media", "Recording", 5, this));
 
     /* Priority ordering for ringtone is the same as for media, but
        BluetoothAudioState doesn't yet support the Ringtone domain. */

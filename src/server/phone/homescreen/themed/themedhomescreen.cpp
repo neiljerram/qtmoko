@@ -349,6 +349,9 @@ void ThemedHomeScreen::themeItemClicked(ThemeItem *item)
     } else if (in == "favorites") {
         QtopiaServiceRequest e( "Favorites", "select()" );
         e.send();
+    } else if (in == "taskmanager") {
+        QtopiaServiceRequest e( "TaskManager", "showRunningTasks()" );
+        e.send();
     } else if (in == "contacts") {
         QtopiaIpcEnvelope e("QPE/Application/addressbook", "raise()");
     } else if( in == "dialer" ) {

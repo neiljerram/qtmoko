@@ -95,7 +95,7 @@
 		</layout>
 		<rect rect="0,25pt,0x18pt">
 			<text rect="0,0,0x9pt" align="hcenter" bold="yes" color="#ffffff" outline="#000000" transient="yes" active="expr:@/Communications/Messages/NewMessages == 1">
-				<tr><trtext>1 new</trtext><trarg>@/Communications/Messages/NewMessages</trarg></tr>
+				<tr><trtext>1 new</trtext></tr>
 			</text>
 			<text rect="0,0,0x9pt" align="hcenter" bold="yes" color="#ffffff" outline="#000000" transient="yes" active="expr:@/Communications/Messages/NewMessages > 1">
 				<tr><trtext>%1 new</trtext><trarg>@/Communications/Messages/NewMessages</trarg></tr>
