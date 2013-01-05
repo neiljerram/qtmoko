@@ -29,4 +29,5 @@ PROJECTS*=\
     3rdparty/applications/yberbrowser \
     3rdparty/applications/neocontrol-gta04 \
     3rdparty/applications/raptor \
-    3rdparty/applications/gta04-gsm-voice-routing
+    3rdparty/applications/gta04-gsm-voice-routing \
+    3rdparty/applications/gta04-modem-messages
