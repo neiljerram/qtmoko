@@ -1,0 +1,9 @@
+[Translation]
+File=QtopiaApplications
+Context=RecordModemMessages
+[Desktop Entry]
+Comment[]=Start recording GTA04 modem diagnostic messages
+Exec=qterminal -c record-modem-messages.sh
+Icon=devtools/devtools
+Type=ConsoleApplication
+Name[]=Record modem messages

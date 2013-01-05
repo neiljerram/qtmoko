@@ -1,0 +1,4 @@
+This program extracts debugging message from the GTA04 modem.
+
+It's a C version of Ruby code (show_msm_messages.rb) from the
+qcombbdbg project.
