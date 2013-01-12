@@ -8,6 +8,8 @@ if [ ! -d /dev/pts ]; then
     modprobe joydev
 fi
 
+alsactl -f /opt/qtmoko/etc/alsa/a3/Null.state restore
+
 # Start pulse audio
 pulse.sh &
 
