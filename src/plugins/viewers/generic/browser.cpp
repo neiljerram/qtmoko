@@ -435,17 +435,20 @@ void Browser::renderMultipart(const QMailMessagePartContainer *mail, QString& bo
 	// parts, a body part and a signature, and the signature
 	// should be verified against the whole of the body part.  For
 	// now, though, we don't do that verification; we just loop
-	// through and render the parts - just as we do for
-	// multipart/mixed, except without allowing for any further
-	// multipart levels.
+	// through and render the parts, the same as we do for
+	// multipart/mixed.
 	for ( uint i = 0; i < mail->partCount(); i++) {
 	    const QMailMessagePart &part = mail->partAt( i );
 
-	    QMailMessageContentDisposition disposition = part.contentDisposition();
-	    if (!disposition.isNull() && disposition.type() == QMailMessageContentDisposition::Attachment)
-		bodyText += renderAttachment(part);
-	    else
-		bodyText += renderPart(part);
+	    if (part.partCount() > 0) {
+		renderMultipart(&part, bodyText);
+	    } else {
+		QMailMessageContentDisposition disposition = part.contentDisposition();
+		if (!disposition.isNull() && disposition.type() == QMailMessageContentDisposition::Attachment)
+		    bodyText += renderAttachment(part);
+		else
+		    bodyText += renderPart(part);
+	    }
 	}
 
     } else if ( mail->multipartType() == QMailMessagePartContainer::MultipartRelated ) {
@@ -469,7 +472,11 @@ void Browser::renderMultipart(const QMailMessagePartContainer *mail, QString& bo
 	}
 
 	// Render the start part
-	bodyText += renderPart(mail->partAt(startIndex));
+	if (mail->partAt(startIndex).partCount() > 0) {
+	    renderMultipart(&mail->partAt(startIndex), bodyText);
+	} else {
+	    bodyText += renderPart(mail->partAt(startIndex));
+	}
 
     } else {
 

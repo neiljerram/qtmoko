@@ -294,7 +294,7 @@ void ImapProtocol::idleDone()
 {
     status = IMAP_Idle_Done;
     transport->stream() << "DONE\r\n" << flush;
-    qLog(IMAP) << "SEND:" << "DONE";
+    qLog(IMAP) << status << "SEND:" << "DONE";
 }
 
 void ImapProtocol::list( QString reference, QString mailbox )
@@ -431,7 +431,7 @@ void ImapProtocol::sendCommand( QString cmd )
     newMessage = true;
 
     transport->stream() << command << "\r\n" << flush;
-    qLog(IMAP) << "SEND:" << qPrintable(command);
+    qLog(IMAP) << status << "SEND:" << qPrintable(command);
 }
 
 void ImapProtocol::incomingData()
@@ -443,9 +443,10 @@ void ImapProtocol::incomingData()
         read += response.length();
 
         if (response.length() > 1)
-            qLog(IMAP) << "RECV:" << qPrintable(response.left(response.length() - 2));
+  	    qLog(IMAP) << status << "RECV:" << qPrintable(response.left(response.length() - 2));
 
-        if (status == IMAP_Idle || status == IMAP_Idle_Done) {
+        if ((status == IMAP_Idle || status == IMAP_Idle_Done) &&
+	    !response.startsWith("* OK")) {
             emit finished(status, operationState);
             response = "";
             read = 0;
