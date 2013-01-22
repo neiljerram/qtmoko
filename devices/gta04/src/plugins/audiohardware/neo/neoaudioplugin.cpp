@@ -77,10 +77,10 @@ static bool gsmVoiceStop()
         return true;
     }
     qLog(AudioState) << "terminating gsm-voice-routing pid " << voicePs->pid();
-    voicePs->terminate();
+    system("killall gsm-voice-routing");
     if (!voicePs->waitForFinished(1000)) {
         qWarning() << "gsm-voice-routing process failed to terminate";
-        voicePs->kill();
+	system("killall -9 gsm-voice-routing");
     }
     delete(voicePs);
     voicePs = NULL;
